@@ -2,107 +2,154 @@
 
 import requests
 import io, json
+import logging
+import signal
+import sys, argparse
 from bs4 import BeautifulSoup
 
 print("Starting script")
 
-searchUrl = 'https://lifestyle.sapo.pt/pesquisar?filtro=receitas&q=&dificuldade=&duracao=&tipo-cozinha=&tipo-prato=&custo='
-url = 'https://lifestyle.sapo.pt/sabores/receitas/robalo-com-bacon-e-sidra'
-#url = 'https://lifestyle.sapo.pt/sabores/receitas/rolo-de-espinafres-rucula-parmesao'
-#page = requests.get(url)
-
-#soup = BeautifulSoup(page.content, 'html.parser')
-
+# Main dictionary that will hold every recipe
 recipesDict = {}
 
-#TODO: Loop main function, to find every recipe url
 #TODO: Log every op to a file
 #TODO: Terminal printing operations, to show current url, how many, time elapsed
 #TODO: Maybe use threads, to enable pausing/stopping without using ctrl+c
 
-page = requests.get(searchUrl)
-soup = BeautifulSoup(page.content, 'html.parser')
-#Get all recipe href's
-recipeUrls = soup.find_all('li', attrs={'class': '[ tiny-100 small-50 medium-33 large-33 xlarge-33 ] '})
-i=0
-print(recipeUrls)
-for recipeUrl in recipeUrls:
-    url = recipeUrl.find('a')['href']
-    url = 'https://lifestyle.sapo.pt' + url
-    print("======Making request: "+url)
-    page = requests.get(url)
-    soup = BeautifulSoup(page.content, 'html.parser')
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-p', '--pages', type=int, default=1, help='Number of pages to search.')
+    parser.add_argument('-r', '--recipes', type=int, default=-1, help='Number of recipes to retrieve.')
 
-    #============ LOOP THIS BOY ==============
+    arguments = parser.parse_args()
 
-    # Parse recipe name from url
-    splitUrl = url.split('/')
-    recipeName = splitUrl[-1].replace('-', ' ')
+    main_function(arguments)
 
-    # Start making a new dicionary entry
-    newRecipe = {}
-    newRecipe['name'] = recipeName
+def main_function(arguments):
+    # Handle SIGINT signal
+    signal.signal(signal.SIGINT, receiveSignal)
 
-    # Get properties (dish type, speed, difficulty) of the recipe
-    properties = ['cuisine', 'dish', 'time', 'difficulty', 'cost', 'calories-level', 'servings']
+    # Counter for recipe number in final json
+    i=0
 
-    for p in properties:
-        current = soup.find('tr', attrs={'class': p})
+    currentPage=1
+    for j in range(arguments.pages):
+        # Make the request
+        page = requests.get('https://lifestyle.sapo.pt/pesquisar?pagina=%s&q=&filtro=receitas' % currentPage)
+        soup = BeautifulSoup(page.content, 'html.parser')
 
-        if current is None: continue
+        #Get all recipe HTML class
+        recipeClasses = soup.find_all('li', attrs={'class': '[ tiny-100 small-50 medium-33 large-33 xlarge-33 ] '})
 
-        if p == 'time' or p == "difficulty" or p == 'cost' or p == 'calories-level':
-            print(current.find('td', attrs={'class': 'name'}).text + ": " + current.find('td', attrs={'class': 'value'}).find('div', attrs={'class': '[ ink-tooltip ]'})['data-tip-text'])
-            newRecipe[p] = current.find('td', attrs={'class': 'value'}).find('div', attrs={'class': '[ ink-tooltip ]'})['data-tip-text']
-        else:
-            print(current.find('td', attrs={'class': 'name'}).text + ": " + current.find('td', attrs={"class": "value"}).text)
-            newRecipe[p] = current.find('td', attrs={"class": "value"}).text
+        for recipeClass in recipeClasses:
 
-    # Get ingredients and their quantities
-    ingredients = soup.find_all('td', attrs={"class": "ingredient-name"})
-    quantities = soup.find_all('td', attrs={"class": "ingredient-quantity"})
+            #Get each individual recipe HREF (in format: /sabores/...)
+            recipeUrl = recipeClass.find('a')['href']
+            recipeUrl = 'https://lifestyle.sapo.pt' + recipeUrl
 
-    print("\n\nGot ingredients: \n")
-    newRecipeIngredients = {}
-    newRecipeQuantities = {}
+            #Get the corresponding HTML
+            print("======Making request: "+recipeUrl)
+            page = requests.get(recipeUrl)
+            soup = BeautifulSoup(page.content, 'html.parser')
 
-    ingredientCount = 0
-    quantityCount = 0
-    for ingredient, quantity in zip(ingredients, quantities):
-        print(ingredient.text+": "+quantity.text)
-        newRecipeIngredients[ingredientCount] = ingredient.text
-        newRecipeQuantities[quantityCount] = (quantity.text + ' de ' + ingredient.text)
+            # Parse recipe name from url
+            splitUrl = recipeUrl.split('/')
+            recipeName = splitUrl[-1].replace('-', ' ')
 
-        ingredientCount+=1
-        quantityCount+=1
+            # Start making a new dicionary entry
+            newRecipe = {}
+            newRecipe['name'] = recipeName
 
-    newRecipe['ingredients'] = newRecipeIngredients
-    newRecipe['quantities'] = newRecipeQuantities
+            # Get properties (dish type, speed, difficulty, ...) of the recipe
+            properties = ['cuisine', 'dish', 'time', 'difficulty', 'cost', 'calories-level', 'servings']
 
-    # Get preparation steps of the recipe
-    prep_section = soup.find_all('section', attrs={'class': 'recipe-preparation'})
-    prep_p = prep_section[0].find_all('p')
+            for p in properties:
+                # Get each property key value pair (gastronomy: international, time: quick, ...)
+                current = soup.find('tr', attrs={'class': p})
 
-    newRecipePrep = {}
-    print("\n\nPreparation: ")
+                # Some properties aren't available in all recipes (cost and calories)
+                if current is None: continue
 
-    prepCounter=0
-    for paragraph in prep_p:
-        print(paragraph.text)
-        newRecipePrep[prepCounter] = paragraph.text
+                # Some properties aren't a simple value but a graphical representation
+                if p == 'time' or p == "difficulty" or p == 'cost' or p == 'calories-level':
+                    print(current.find('td', attrs={'class': 'name'}).text + ": " + current.find('td', attrs={'class': 'value'}).find('div', attrs={'class': '[ ink-tooltip ]'})['data-tip-text'])
+                    newRecipe[p] = current.find('td', attrs={'class': 'value'}).find('div', attrs={'class': '[ ink-tooltip ]'})['data-tip-text']
+                else:
+                    print(current.find('td', attrs={'class': 'name'}).text + ": " + current.find('td', attrs={"class": "value"}).text)
+                    newRecipe[p] = current.find('td', attrs={"class": "value"}).text
 
-        prepCounter+=1
+            # Get ingredients and their quantities
+            ingredients = soup.find_all('td', attrs={"class": "ingredient-name"})
+            quantities = soup.find_all('td', attrs={"class": "ingredient-quantity"})
 
-    newRecipe['preparation'] = newRecipePrep
+            print("\n\nGot ingredients: \n")
 
-    # Add to a list (or make it json right away)
-    recipesDict[i] = newRecipe
+            # Create new dictionaries to hold these values
+            newRecipeIngredients = {}
+            newRecipeQuantities = {}
 
-    print(recipesDict)
-    i+=1
-    print(json.dumps(recipesDict, indent=4,default=str).decode("unicode-escape"))
-    break
-    #============ LOOP THIS BOY ==============
+            # Counters for each ingredient and quantity, will be the keys in dictionary
+            ingredientCount = 0
+            quantityCount = 0
 
-with io.open('data.json', 'w', encoding='utf-8') as f:
-    f.write(json.dumps(recipesDict, ensure_ascii=False))
+            for ingredient, quantity in zip(ingredients, quantities):
+                print(ingredient.text+": "+quantity.text)
+                newRecipeIngredients[ingredientCount] = ingredient.text
+                newRecipeQuantities[quantityCount] = (quantity.text + ' de ' + ingredient.text)
+
+                ingredientCount+=1
+                quantityCount+=1
+
+            # Add created dictionaries to root recipe dictionary
+            newRecipe['ingredients'] = newRecipeIngredients
+            newRecipe['quantities'] = newRecipeQuantities
+
+            # Get preparation steps of the recipe
+            prep_section = soup.find_all('section', attrs={'class': 'recipe-preparation'})
+            prep_p = prep_section[0].find_all('p')
+
+            # Create new dictionary to hold these paragraphs
+            newRecipePrep = {}
+            print("\n\nPreparation: ")
+
+            # Counter for each paragraph, will be key in dictionary
+            prepCounter=0
+            for paragraph in prep_p:
+                print(paragraph.text)
+                newRecipePrep[prepCounter] = paragraph.text
+
+                prepCounter+=1
+
+            # Add created dictionaries to root recipe dictionary
+            newRecipe['preparation'] = newRecipePrep
+
+            # Add to final recipe dictionary
+            recipesDict[i] = newRecipe
+
+            i+=1
+
+            # Check if we reached recipe limit
+            if i == arguments.recipes:
+                break
+
+            #print(json.dumps(recipesDict, indent=4,default=str).decode("unicode-escape"))
+
+        # Check if we reached recipe limit
+        if i == arguments.recipes:
+            break
+
+        currentPage+=1
+
+    write_to_json()
+
+def write_to_json():
+    # Write final dictionary to a file
+    with io.open('data.json', 'w', encoding='utf-8') as f:
+        f.write(json.dumps(recipesDict, ensure_ascii=False))
+
+def receiveSignal(signalNumber, frame):
+    # Trigger writing dicitonary to file when receiving SIGINT (Ctrl+C)
+    write_to_json()
+    exit(1)
+
+main()
