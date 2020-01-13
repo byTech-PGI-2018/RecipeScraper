@@ -52,13 +52,11 @@ def main_function(arguments):
             page = requests.get(recipeUrl)
             soup = BeautifulSoup(page.content, 'html.parser')
 
-            # Parse recipe name from url
-            splitUrl = recipeUrl.split('/')
-            recipeName = splitUrl[-1].replace('-', ' ')
-
             # Start making a new dicionary entry
             newRecipe = {}
-            newRecipe['name'] = recipeName
+
+            # Get recipe name
+            newRecipe['name'] = soup.find('h1', attrs={'class': 'recipe-title'}).text
 
             # Get properties (dish type, speed, difficulty, ...) of the recipe
             properties = ['cuisine', 'dish', 'time', 'difficulty', 'cost', 'calories-level', 'servings']
