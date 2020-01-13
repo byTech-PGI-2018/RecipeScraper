@@ -3,10 +3,10 @@ import scrapy
 class RecipesSpider(scrapy.Spider):
     name = "recipes"
 
-    def __init__(self, pages='', **kwargs):
+    def __init__(self, pagestart='', pageend='', **kwargs):
         # Create search page URL's from page 1 to page N passed as parameter
         baseUrl = 'https://lifestyle.sapo.pt/pesquisar?pagina='
-        self.start_urls = [baseUrl + str(i) + '&q=&filtro=receitas' for i in range(1,int(pages)+1)]
+        self.start_urls = [baseUrl + str(i) + '&q=&filtro=receitas' for i in range(int(pagestart),int(pageend)+1)]
         
         super().__init__(**kwargs)
 
