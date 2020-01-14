@@ -20,9 +20,18 @@ class RecipesSpider(scrapy.Spider):
             # Start making a new dicionary entry
             newRecipe = {}
             newRecipe['name'] = response.css('h1.recipe-title::text').extract_first()
+            newRecipe['url'] = response.request.url
+
+            # Assume recipe is not vegan (this will be updated later if it is)
+            newRecipe['vegan'] = False
 
             # Get properties (dish type, speed, difficulty, ...) of the recipe
             properties = ['cuisine', 'dish', 'time', 'difficulty', 'cost', 'calories-level', 'servings']
+
+            # These will be the keys in the firestore db
+            pKeys = {'cuisine': 'gastronomia', 'dish': 'tipo', 'time': 'tempo', 
+                    'difficulty': 'dificuldade', 'cost': 'custo', 
+                    'calories-level': 'calorias', 'servings': 'porção'}
             
             for p in properties:
                 # Get each property name-value pair (gastronomy: international, time: quick, ...)
@@ -33,14 +42,19 @@ class RecipesSpider(scrapy.Spider):
 
                 # Some properties aren't a simple value but a graphical representation
                 elif p == 'time' or p == "difficulty" or p == 'cost' or p == 'calories-level':
-                    newRecipe[value.css('td.name::text').extract_first()] = value.css('div::attr(data-tip-text)').extract_first()
+                    newRecipe[pKeys[p]] = value.css('div::attr(data-tip-text)').extract_first()
 
+                # Simple text value
                 elif p == 'servings':
-                    newRecipe[value.css('td.name::text').extract_first()] = value.css('td.value::text').extract_first()
+                    newRecipe[pKeys[p]] = value.css('td.value::text').extract_first()
                 
-                # Some properties have a hyperlink
+                # Some properties have a hyperlink (cuisine and dish)
                 else:
-                    newRecipe[value.css('td.name::text').extract_first()] = value.css('a::text').extract_first()
+                    newRecipe[pKeys[p]] = value.css('a::text').extract_first()
+
+                    #Also check if it's a vegan recipe (if cuisine is 'Vegetariana' or dish is 'Vegetariano')
+                    if (p == 'cuisine' and newRecipe[pKeys[p]] in 'Vegetariana') or (p == 'dish' and newRecipe[pKeys[p]] in 'Vegetariano'):
+                        newRecipe['vegan'] = True
 
             # Create new dictionaries to hold ingredients and quantities (and counters, to serve as keys)
             newRecipeIngredients = {}
@@ -59,7 +73,7 @@ class RecipesSpider(scrapy.Spider):
 
             # Add ingredients and quantities to root dictionary
             newRecipe['ingredients'] = newRecipeIngredients
-            newRecipe['quantities'] = newRecipeQuantities
+            newRecipe['quantidade'] = newRecipeQuantities
 
             # Create new dictionary to hold preparation paragraphs (and counter to serve as key)
             newRecipePrep = {}
@@ -73,7 +87,7 @@ class RecipesSpider(scrapy.Spider):
                 pCounter+=1
 
             # Add preparation to root dictionary
-            newRecipe['preparation'] = newRecipePrep
+            newRecipe['preparação'] = newRecipePrep
             
             # Return the recipe dictionary
             yield newRecipe
