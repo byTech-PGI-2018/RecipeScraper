@@ -25,3 +25,9 @@ Thumbs.db
 
 # Text file with run command
 command.txt
+
+# Job scheduling scripts
+script.sh
+
+# VS Code
+.vscode
