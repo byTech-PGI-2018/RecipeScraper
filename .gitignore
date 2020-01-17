@@ -22,6 +22,7 @@ Thumbs.db
 
 # JSON files
 *.json
+*.jsonl
 *.jl
 
 # Text file with run command
