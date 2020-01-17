@@ -4,13 +4,13 @@ import scrapy, re
 
 class SaborIntensoSpider(scrapy.Spider):
     name = 'sabor_intenso'
-    #allowed_domains = ['https://www.saborintenso.com/chef']
+    #allowed_domains = ['https://www.saborintenso.com/']
 
 
     def __init__(self, pagestart='', pageend='', **kwargs):
         # Create base URL's from where to start searching for recipes
-        baseUrls = ['https://www.saborintenso.com/chef/caderno-1/&ver=tudo&page=%s/']
-        ''''https://www.saborintenso.com/chef/caderno-9/&ver=tudo&page=%s/',
+        baseUrls = ['https://www.saborintenso.com/chef/caderno-1/&ver=tudo&page=%s/',
+                    'https://www.saborintenso.com/chef/caderno-9/&ver=tudo&page=%s/',
                     'https://www.saborintenso.com/chef/caderno-19/&ver=tudo&page=%s/',
                     'https://www.saborintenso.com/chef/caderno-15/&ver=tudo&page=%s/',
                     'https://www.saborintenso.com/chef/caderno-30/&ver=tudo&page=%s/',
@@ -24,7 +24,7 @@ class SaborIntensoSpider(scrapy.Spider):
                     'https://www.saborintenso.com/chef/caderno-62/&ver=tudo&page=%s/',
                     'https://www.saborintenso.com/chef/caderno-76/&ver=tudo&page=%s/',
                     'https://www.saborintenso.com/chef/caderno-66/&ver=tudo&page=%s/',
-                    'https://www.saborintenso.com/chef/caderno-84/&ver=tudo&page=%s/',]'''
+                    'https://www.saborintenso.com/chef/caderno-84/&ver=tudo&page=%s/']
         
         # For each kind of base URL, build N search pages
         self.start_urls = [baseUrl % i for baseUrl in baseUrls for i in range(int(pagestart), int(pageend)+1)]
@@ -49,22 +49,27 @@ class SaborIntensoSpider(scrapy.Spider):
             # The recipe may not have these properties, but add them anyway for consistency
             newRecipe['gastronomia'] = ""
             newRecipe['tipo'] = ""
+            newRecipe['dificuldade'] = ""
 
             # Try to extract dish type
             try:
                 newRecipe['tipo'] = response.css('a.bc_l0::text').extract()[2]
+
+                # Check if the type is vegan
+                if newRecipe['tipo'] and (newRecipe['tipo'] in 'Vegetariana'):
+                    newRecipe['vegan'] = True
             except:
                 print("No dish type for recipe: " + response.request.url)
 
             # Try to extract dish portions
             try:
-                newRecipe['porção'] = response.xpath('//*[@class="topico"]/font[1]/font/b/text()').get().split("para")[-1].replace(":", "").strip()
+                newRecipe['porção'] = response.xpath('//*[@class="topico"]/font[1]/font/b/text()').extract_first().split("para")[-1].replace(":", "").strip()
             except:
                 print("No portion info for recipe: " + response.request.url)
 
             # Try to extract calorie information
             try:
-                newRecipe['calorias'] = response.xpath('//*[@class="topico"]/div[2]/font[1]/text()').get().split(":")[-1].strip()
+                newRecipe['calorias'] = response.xpath('//*[@class="topico"]/div[2]/font[1]/text()').extract_first().split(":")[-1].strip()
             except:
                 print("No calorie info for recipe: " + response.request.url)
 
@@ -79,7 +84,7 @@ class SaborIntensoSpider(scrapy.Spider):
             
             # TODO: Sometimes there's an additional <a> tag in the <li> tag
             # Get ingredients and respective quantities (in the source HTML, they will be mixed)
-            ingredients = response.xpath('//*[@class="topico"]/ul/descendant::*/text()').getall()
+            ingredients = response.xpath('//*[@class="topico"]/ul/descendant::*/text()').extract()
             for i, ingredient in enumerate(ingredients):
                 # Since everything is just one string, add it to quantities dictionary
                 newRecipeQuantities[i] = ingredient
@@ -120,16 +125,36 @@ class SaborIntensoSpider(scrapy.Spider):
             newRecipeInstructions = {}
 
             # Get all instructions
-            instructions = response.xpath('//*[@class="topico"]/self::*/text()').getall()
+            instructions = response.xpath('//*[@class="topico"]/self::*/text()').extract()
 
-            # Remove '\r\n' and empty strings from the list
-            instructions = [i.replace("\r\n", "") for i in instructions if (i.replace("\r\n", "") and not i.replace("\r\n", "").isspace())]
+            # Remove newlines characters and empty strings from the list
+            instructions = [i.replace("\r\n", "").replace("\n", "") for i in instructions if (i.replace("\r\n", "").replace("\n", "") and not i.replace("\r\n", "").replace("\n", "").isspace())]
             for i, instruction in enumerate(instructions):
                 newRecipeInstructions[i] = instruction
 
             # Add newly created dictionary to root dictionary
             newRecipe['preparação'] = newRecipeInstructions
 
+            # Assume preparation time and cost is empty for now
+            newRecipe['tempo'] = ''
+            newRecipe['custo'] = ''
+
+            # Get preparation time and cost elements (if they exist)
+            items = response.xpath('//*[@class="topico"]/*[@color="seagreen"]//text()').extract()
+
+            # Try to add preparation time (older recipes don't have this element)
+            try:
+                newRecipe['tempo'] = items[0].split(":")[-1].strip()
+            except:
+                print('Failed to obtain preparation time for recipe: ' + response.request.url)
+
+            # Try to add recipe cost (some recipes don't have this)
+            try:
+                newRecipe['custo'] = items[1].split("|")[0].split(":")[-1].strip()
+            except:
+                print('Failed to obtain cost for recipe: ' + response.request.url)
+
+            # Return the recipe data
             yield newRecipe
 
         # Otherwise, find all recipe URL's from search page
