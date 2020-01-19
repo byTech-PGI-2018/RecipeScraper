@@ -50,6 +50,8 @@ class SaborIntensoSpider(scrapy.Spider):
             newRecipe['gastronomia'] = ""
             newRecipe['tipo'] = ""
             newRecipe['dificuldade'] = ""
+            newRecipe['calorias'] = ""
+            newRecipe['porção'] = ""
 
             # Try to extract dish type
             try:
@@ -78,14 +80,20 @@ class SaborIntensoSpider(scrapy.Spider):
             newRecipeQuantities = {}
 
             # Pattern to discard ingredient unit-related stuff
-            #pattern = re.compile('[0-9].*([0-9]|kg|g|ml|l)$', re.IGNORECASE)
             pattern = re.compile('(([0-9]*\.)?[0-9]+(kg|mg|l|ml|g|(colheres)|(colher))?)|^(kg|mg|l|ml|g|(colheres)|(colher))$', re.IGNORECASE)
-            #single_digit = re.compile('[0-9]$', re.IGNORECASE)
-            
-            # TODO: Sometimes there's an additional <a> tag in the <li> tag
+
             # Get ingredients and respective quantities (in the source HTML, they will be mixed)
-            ingredients = response.xpath('//*[@class="topico"]/ul/descendant::*/text()').extract()
-            for i, ingredient in enumerate(ingredients):
+            ingredients = response.xpath('//*[@class="topico"]/ul/descendant::*')
+            
+            # Iterate over all extracted <li> elements
+            for i, ingredientSelector in enumerate(ingredients):
+                # Extract every text node in the <li> tag, this may include some children like <a> tags
+                ingredientList = ingredientSelector.xpath('descendant-or-self::text()').extract()
+                ingredient = ""
+
+                # Join any sub children text nodes (such as a <a> tag as child)
+                ingredient = " ".join(ingredientList).strip()
+
                 # Since everything is just one string, add it to quantities dictionary
                 newRecipeQuantities[i] = ingredient
 
