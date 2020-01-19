@@ -1,2 +1,2 @@
 # RecipeScraper
-Web Scraper de receitas
+Web crawler de receitas em português implementado usando Scrapy.
