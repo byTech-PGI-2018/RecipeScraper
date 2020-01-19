@@ -22,3 +22,14 @@ Thumbs.db
 
 # JSON files
 *.json
+*.jsonl
+*.jl
+
+# Text file with run command
+command.txt
+
+# Job scheduling/data exporting scripts
+#scripts/
+
+# VS Code
+.vscode
