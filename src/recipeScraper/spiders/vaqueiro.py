@@ -4,16 +4,11 @@ import json
 import re
 import unicodedata
 
-# StartIDX = 0
-# EndIDX = 11
-# 12 Receitas iniciais
-# +12 Receitas em cada chamada AJAX
-
-# MAX: 4678 EndIdx
-# MAX ENDPAGE: 390
-
+# Base URL's
 baseUrl = 'https://www.vaqueiro.pt'
 ajaxUrl = 'https://www.vaqueiro.pt/Search/QueryService'
+
+# Data field for AJAX requests
 data = {'formSelected': "0" ,
         'text': ""          ,
         'difficulty': ""    ,
@@ -23,42 +18,44 @@ data = {'formSelected': "0" ,
         'EndIdx': ""        }
 
 # Map category names passed as arguments to actual meaningful category info
-'''categories =    {
-                'sopas': "1",
-                'entradas': "2",
-                'saladas': "3",
-                'carnes': "6",
-                'peixes': "4",
-                'massas': "8",
-                'arroz': "9",
-                'legumes': "7",
-                'acompanhamentos': "12",
-                'paes': "10",
-                'pizzas': "11",
-                'bebidas': "13",
-                'dietas': "15",
-                'doces': "14"
-                }'''
+categories =    {
+    'sopas': "1",
+    'entradas': "2",
+    'saladas': "3",
+    'carnes': "6",
+    'peixes': "4",
+    'massas': "8",
+    'arroz': "9",
+    'legumes': "7",
+    'acompanhamentos': "12",
+    'paes': "10",
+    'pizzas': "11",
+    'bebidas': "13",
+    'dietas': "15",
+    'doces': "14"
+}
+
+# Map the total number of pages each recipe category has
+max_pages = {
+    'sopas'     : "22",
+    'entradas'  : "60",
+    'saladas'   : "21",
+    'carnes'    : "76",
+    'peixes'    : "70",
+    'massas'    : "14",
+    'arroz'     : "15",
+    'legumes'   : "14",
+    'acompanhamentos': "5",
+    'paes'      : "11",
+    'pizzas'    : "7",
+    'bebidas'   : "7",
+    'dietas'    : "4",
+    'doces'     : "124"
+}
 
 
 class VaqueiroSpider(scrapy.Spider):
     name = 'vaqueiro'
-    #allowed_domains = ['https://www.vaqueiro.pt/receitas']
-    '''start_urls = ['http://https://www.vaqueiro.pt/receitas/',
-                  'https://www.vaqueiro.pt/receitas/entradas-e-petiscos/receitas-entradas-e-petiscos',
-                  'https://www.vaqueiro.pt/receitas/sopas/receitas-sopas',
-                  'https://www.vaqueiro.pt/receitas/saladas/receitas-saladas',
-                  'https://www.vaqueiro.pt/receitas/carne/receitas-carne',
-                  'https://www.vaqueiro.pt/receitas/peixe/receitas-peixe',
-                  'https://www.vaqueiro.pt/receitas/massas/receitas-massas',
-                  'https://www.vaqueiro.pt/receitas/arroz',
-                  'https://www.vaqueiro.pt/receitas/legumes',
-                  'https://www.vaqueiro.pt/receitas/outros-acompanhamentos',
-                  'https://www.vaqueiro.pt/receitas/doces-e-sobremesas/receitas-doces-e-sobremesas',
-                  'https://www.vaqueiro.pt/receitas/paes',
-                  'https://www.vaqueiro.pt/receitas/pizzas',
-                  'https://www.vaqueiro.pt/receitas/bebidas',
-                  'https://www.vaqueiro.pt/receitas/dietas/receitas-dietas']'''
 
     def __init__(self, **kwargs):
         # Base URL from which to execute AJAX requests (actually irrelevant)
@@ -79,9 +76,9 @@ class VaqueiroSpider(scrapy.Spider):
         itemstart = int(response.meta.get("itemstart")) + 12
         itemend = itemstart + 11
 
-        # Check if we reached the limit of pages to search
+        # Check if we reached the limit of pages to search, or if there are no more pages to search
         pagecount = int(response.meta.get("pagecount"))
-        if pagecount >= int(self.pageend):
+        if pagecount >= int(self.pageend) or pagecount >= int(max_pages[self.category]):
             return
 
         # If not, increment pagecount
@@ -116,7 +113,8 @@ class VaqueiroSpider(scrapy.Spider):
         newRecipe['dificuldade'] = ""
 
 
-        #TODO: Problems getting properties
+        # Set dish type as category passed as argument
+        newRecipe['tipo'] = self.category
 
         # Try to get recipe properties (cost, duration and difficulty)
         try:
@@ -205,9 +203,9 @@ class VaqueiroSpider(scrapy.Spider):
 
     # This function handles the initial AJAX request
     def parse(self, response):
-        # Check if we received arguments
+        # Check if we received required arguments
         try:
-            if self.pagestart or self.pageend:
+            if self.pagestart or self.pageend or self.category:
                 pass
         except:
             print("No arguments")
@@ -217,6 +215,9 @@ class VaqueiroSpider(scrapy.Spider):
         itemstart = str( ( int(self.pagestart) -1) *12)
         data['StartIdx'] = itemstart
         data['EndIdx'] = str( int(itemstart) +11 )
+
+        # Set the category value
+        data['category'] = categories[self.category]
 
         pagecount = self.pagestart
         
