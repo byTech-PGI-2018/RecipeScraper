@@ -78,7 +78,7 @@ class VaqueiroSpider(scrapy.Spider):
 
         # Check if we reached the limit of pages to search, or if there are no more pages to search
         pagecount = int(response.meta.get("pagecount"))
-        if pagecount >= int(self.pageend) or pagecount >= int(max_pages[self.category]):
+        if pagecount >= int(self.pageend) or pagecount >= int(max_pages[self.category]): # pylint: disable=no-member
             return
 
         # If not, increment pagecount
@@ -114,7 +114,7 @@ class VaqueiroSpider(scrapy.Spider):
 
 
         # Set dish type as category passed as argument
-        newRecipe['tipo'] = self.category
+        newRecipe['tipo'] = self.category # pylint: disable=no-member
 
         # Try to get recipe properties (cost, duration and difficulty)
         try:
@@ -137,7 +137,7 @@ class VaqueiroSpider(scrapy.Spider):
         newRecipeQuantities = {}
 
         # Pattern to discard ingredient unit-related stuff
-        pattern = re.compile('(([0-9]*\.)?[0-9]+(kg|mg|dl|l|ml|g|(colheres)|(colher))?)|^(kg|mg|dl|l|ml|g|(colheres)|(colher))$', re.IGNORECASE)
+        pattern = re.compile('(([0-9]*\.)?[0-9]+(kg|mg|dl|l|ml|g|(colheres)|(colher))?)|^(kg|mg|dl|l|ml|g|(colheres)|(colher))$', re.IGNORECASE) # pylint: disable=anomalous-backslash-in-string
 
         # Get ingredients and respective quantities (in the source HTML, they will be mixed)
         ingredients = response.xpath('//*[@class="preparation"]/ul/descendant::li')
@@ -186,7 +186,7 @@ class VaqueiroSpider(scrapy.Spider):
         newRecipeInstructions = {}
 
         # Get all instructions, split by a newline char, and remove empty strings and tabs
-        instructions = response.xpath('string(//*[@class="instructions"]/descendant-or-self::*[not(@class="title")])').extract_first()
+        instructions = response.xpath('substring-after(//*[@class="instructions"]/descendant-or-self::*[not(@class="title")], "Preparação")').extract_first()
         iCounter=0
         for instruction in instructions.replace("\t", "").splitlines():
             instruction = instruction.strip()
@@ -212,14 +212,14 @@ class VaqueiroSpider(scrapy.Spider):
             return
 
         # Build first AJAX request, with item index offset from (pagestart-1)*12 to (pagestart-1)*12+11
-        itemstart = str( ( int(self.pagestart) -1) *12)
+        itemstart = str( ( int(self.pagestart) -1) *12) # pylint: disable=no-member
         data['StartIdx'] = itemstart
         data['EndIdx'] = str( int(itemstart) +11 )
 
         # Set the category value
-        data['category'] = categories[self.category]
+        data['category'] = categories[self.category] # pylint: disable=no-member
 
-        pagecount = self.pagestart
+        pagecount = self.pagestart # pylint: disable=no-member
         
         yield scrapy.FormRequest(ajaxUrl, formdata=data, meta={"pagecount": pagecount, "itemstart": itemstart}, callback=self.parse_ajax)
 
