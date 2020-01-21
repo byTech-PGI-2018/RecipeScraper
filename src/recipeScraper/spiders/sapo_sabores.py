@@ -1,8 +1,11 @@
+# -*- coding: utf-8 -*-
 import scrapy
 
-class RecipesSpider(scrapy.Spider):
-    name = "recipes"
 
+class SapoSaboresSpider(scrapy.Spider):
+    name = 'sapo_sabores'
+
+    
     def __init__(self, pagestart='', pageend='', **kwargs):
         # Create search page URL's from page 1 to page N passed as parameter
         baseUrl = 'https://lifestyle.sapo.pt/pesquisar?pagina='
